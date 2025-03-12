@@ -98,45 +98,87 @@ fn save_and_commit(content: String) -> Result<String, String> {
 
 // Tampilkan riwayat commit
 #[tauri::command]
-fn show_history() -> Result<Vec<String>, String> {
+fn show_history() -> Result<Vec<CommitInfo>, String> {
     let noteapp_dir = get_noteapp_dir();
     let commits_dir = format!("{}/.vcs/commits", noteapp_dir);
     let mut commits = Vec::new();
 
     if !Path::new(&commits_dir).exists() {
-        return Ok(vec!["No commit history found".to_string()]);
+        return Ok(vec![]);
     }
 
     let mut commit_ids: Vec<String> = fs::read_dir(&commits_dir)
         .map_err(|e| e.to_string())?
         .filter_map(|e| e.ok().map(|e| e.file_name().into_string().unwrap()))
         .collect();
-    commit_ids.sort();
+    commit_ids.sort_by(|a, b| b.cmp(a)); // Urutkan terbalik agar yang terbaru di atas
 
     for commit_id in commit_ids {
         let commit_path = format!("{}/{}", commits_dir, commit_id);
-        let content = fs::read_to_string(&commit_path).map_err(|e| e.to_string())?;
+        let _content = fs::read_to_string(&commit_path).map_err(|e| e.to_string())?;
         let timestamp = commit_id.parse::<u64>().unwrap();
         let time_str = std::time::UNIX_EPOCH + std::time::Duration::from_secs(timestamp);
         let date = chrono::DateTime::<chrono::Utc>::from(time_str)
             .format("%a %b %d %H:%M:%S %Y")
             .to_string();
 
-        let mut commit_info = vec![format!("Commit {}", commit_id), format!("Date: {}", date)];
-        for line in content.lines() {
-            commit_info.push(format!("  {}", line));
-        }
-        commits.push(commit_info.join("\n"));
+        commits.push(CommitInfo {
+            id: commit_id,
+            date,
+            files: vec!["note.txt".to_string()],
+        });
     }
 
     Ok(commits)
 }
 
+// Ambil konten file dari commit
+#[tauri::command]
+fn read_commit(commit_id: String) -> Result<String, String> {
+    let noteapp_dir = get_noteapp_dir();
+    let commit_path = format!("{}/.vcs/commits/{}", noteapp_dir, commit_id);
+    
+    // Baca file commit untuk mendapatkan hash file
+    let commit_content = fs::read_to_string(&commit_path).map_err(|e| e.to_string())?;
+    
+    // Parse line untuk mendapatkan hash file
+    let parts: Vec<&str> = commit_content.trim().split_whitespace().collect();
+    if parts.len() < 2 {
+        return Err("Invalid commit format".to_string());
+    }
+    
+    let file_hash = parts[1]; // Ambil hash dari format "note.txt {hash}"
+    
+    // Akses file dari objects
+    let subdir = &file_hash[0..2];
+    let rest = &file_hash[2..];
+    let object_path = format!("{}/.vcs/objects/{}/{}", noteapp_dir, subdir, rest);
+    
+    // Baca isi file dari objects
+    let file_content = fs::read_to_string(&object_path).map_err(|e| e.to_string())?;
+    
+    Ok(file_content)
+}
+
+#[tauri::command]
+fn read_note() -> Result<String, String> {
+    let noteapp_dir = get_noteapp_dir();
+    let note_path = format!("{}/note.txt", noteapp_dir);
+
+    let content = fs::read_to_string(&note_path).map_err(|e| e.to_string())?;
+    Ok(content)
+}
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![init_app, save_and_commit, show_history])
+        .invoke_handler(tauri::generate_handler![
+            init_app, 
+            save_and_commit, 
+            show_history, 
+            read_commit, 
+            read_note
+        ])        
         .setup(|_app| {  
             init_app()?;
             Ok(())

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Note App with VCS</title>
+    <title>Personal Note App</title>
     <style>
       body {
         font-family: -apple-system, BlinkMacSystemFont, sans-serif;
@@ -39,13 +39,51 @@
         max-height: 200px;
         overflow-y: auto;
       }
+      .history-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .commit-bubble {
+        background: white;
+        padding: 10px 15px;
+        border-radius: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+        transition: transform 0.2s, background 0.2s;
+      }
+
+      .commit-bubble:hover {
+        background: #e0e0e0;
+        transform: scale(0.95);
+      }
+
+      .view-mode-indicator {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 5px;
+        display: none;
+      }
     </style>
   </head>
   <body>
-    <h1>Note App with VCS</h1>
+    <h1>Personal Note App</h1>
+
+    <div id="viewModeIndicator" class="view-mode-indicator">
+      Viewing history (read-only)
+    </div>
+
+    <button
+      id="backToCurrent"
+      onclick="loadCurrentNote()"
+      style="display: none"
+    >
+      Back to Current
+    </button>
+
     <textarea id="note" placeholder="Type your notes here..."></textarea>
     <br />
-    <button onclick="showHistory()">Show History</button>
     <pre id="history"></pre>
 
     <script type="module">
@@ -53,6 +91,10 @@
 
       const noteTextarea = document.getElementById('note');
       const historyPre = document.getElementById('history');
+      const backToCurrentBtn = document.getElementById('backToCurrent');
+      const viewModeIndicator = document.getElementById('viewModeIndicator');
+
+      let isViewingHistory = false;
 
       // Load initial content dari note.txt
       async function loadNote() {
@@ -65,6 +107,7 @@
         try {
           return await invoke('read_note', {});
         } catch (error) {
+          console.error('Error fetching note:', error);
           return '';
         }
       }
@@ -74,6 +117,15 @@
         if (e.metaKey && e.key === 's') {
           // Cmd + S di macOS
           e.preventDefault();
+
+          // Hanya boleh save kalau tidak sedang view history
+          if (isViewingHistory) {
+            alert(
+              "Can't save while viewing history. Click 'Back to Current' first."
+            );
+            return;
+          }
+
           try {
             const content = noteTextarea.value;
             const result = await invoke('save_and_commit', { content });
@@ -86,14 +138,86 @@
       });
 
       // Tampilkan riwayat
-      async function showHistory() {
+      window.showHistory = async function () {
         try {
           const history = await invoke('show_history');
-          historyPre.textContent = history.join('\n\n');
+
+          // Bersihkan history sebelumnya
+          historyPre.innerHTML = '';
+
+          // Buat div container
+          const container = document.createElement('div');
+          container.classList.add('history-container');
+
+          if (history.length === 0) {
+            historyPre.textContent = 'No commit history found';
+            return;
+          }
+
+          history.forEach((commit) => {
+            const bubble = document.createElement('div');
+            bubble.classList.add('commit-bubble');
+            bubble.textContent = commit.date;
+            bubble.dataset.commitId = commit.id;
+
+            // Tambahkan event saat diklik
+            bubble.addEventListener('click', () => {
+              loadCommitContent(commit.id);
+            });
+
+            container.appendChild(bubble);
+          });
+
+          historyPre.appendChild(container);
         } catch (error) {
-          alert('Error: ' + error);
+          console.error('Error showing history:', error);
+          historyPre.textContent = 'Error loading history: ' + error;
         }
-      }
+      };
+
+      window.loadCommitContent = async function (commitId) {
+        try {
+          const commitContent = await invoke('read_commit', { commitId });
+
+          // Set history viewing mode
+          isViewingHistory = true;
+          viewModeIndicator.style.display = 'block';
+
+          // Update editor with commit content in read-only mode
+          noteTextarea.value = commitContent;
+          noteTextarea.readOnly = true;
+
+          // Show back button
+          backToCurrentBtn.style.display = 'block';
+
+          console.log('Commit loaded:', commitId);
+        } catch (error) {
+          console.error('Error loading commit:', error);
+          alert('Error loading commit: ' + error);
+        }
+      };
+
+      window.loadCurrentNote = async function () {
+        try {
+          const currentContent = await invoke('read_note');
+
+          // Exit history viewing mode
+          isViewingHistory = false;
+          viewModeIndicator.style.display = 'none';
+
+          // Update editor with current content
+          noteTextarea.value = currentContent;
+          noteTextarea.readOnly = false;
+
+          // Hide back button
+          backToCurrentBtn.style.display = 'none';
+
+          console.log('Loaded current note');
+        } catch (error) {
+          console.error('Error loading current note:', error);
+          alert('Error loading note: ' + error);
+        }
+      };
 
       // Inisialisasi saat aplikasi mulai
       loadNote();
