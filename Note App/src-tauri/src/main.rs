@@ -1,3 +1,4 @@
+// TO BE DELETED
 use chrono;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -360,6 +361,7 @@ fn show_history(category_id: String, note_id: String) -> Result<Vec<CommitInfo>,
         let timestamp = commit_id.parse::<u64>().unwrap();
         let time_str = std::time::UNIX_EPOCH + std::time::Duration::from_secs(timestamp);
         let date = chrono::DateTime::<chrono::Utc>::from(time_str)
+            .with_timezone(&chrono::Local)
             .format("%a %b %d %H:%M:%S %Y")
             .to_string();
 

@@ -538,6 +538,7 @@
       }
     </style>
   </head>
+
   <body>
     <!-- Main Sidebar Toggle Button (visible when sidebar is collapsed) -->
     <div id="main-sidebar-toggle" class="main-sidebar-toggle">&#9776;</div>
@@ -1269,7 +1270,6 @@
 
             // Format date nicely (e.g., "Wednesday 12 March 2025")
             const formattedDate = new Date(date).toLocaleDateString(undefined, {
-              weekday: 'long',
               day: 'numeric',
               month: 'long',
               year: 'numeric',
@@ -1300,6 +1300,7 @@
               bubble.classList.add('commit-bubble');
 
               // Display the date as shown in your screenshot
+
               bubble.textContent = commit.date;
 
               bubble.onclick = (e) => {
